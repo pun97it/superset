@@ -463,6 +463,13 @@ class BaseReportState:
                 )
                 for url in urls
             ]
+        # Commit any pending permalink records so they are visible to the
+        # Playwright browser process, which uses a separate DB connection.
+        # Without this, the permalink created by CreateDashboardPermalinkCommand
+        # stays uncommitted (only flushed) inside the outer @transaction() and
+        # Playwright gets a 404 when navigating to the permalink URL.
+        db.session.commit()
+
         try:
             imges = []
             for screenshot in screenshots:

@@ -995,6 +995,80 @@ def test_screenshot_width_calculation(
                 )
 
 
+def test_get_screenshots_commits_before_screenshot_capture(
+    app: SupersetApp,
+    mocker: MockerFixture,
+) -> None:
+    """
+    Regression test for race condition: permalink must be committed to the
+    database before Playwright attempts to load the URL.
+
+    CreateDashboardPermalinkCommand flushes (but does not commit) the permalink
+    when called inside an outer @transaction(). Without an explicit commit
+    before the screenshot, Playwright's separate DB connection cannot see the
+    permalink row and gets a 404.
+    """
+    from uuid import UUID
+
+    from superset.commands.report.execute import BaseReportState
+
+    app.config.update(
+        {
+            "ALERT_REPORTS_MAX_CUSTOM_SCREENSHOT_WIDTH": 1600,
+            "WEBDRIVER_WINDOW": {
+                "slice": (800, 600),
+                "dashboard": (800, 600),
+            },
+            "ALERT_REPORTS_EXECUTORS": {},
+        }
+    )
+
+    report_schedule = create_report_schedule(mocker)
+
+    report_state = BaseReportState(
+        report_schedule=report_schedule,
+        scheduled_dttm=datetime.now(),
+        execution_id=UUID("084e7ee6-5557-4ecd-9632-b7f39c9ec524"),
+    )
+
+    call_order: list[str] = []
+
+    mock_db = mocker.patch("superset.commands.report.execute.db")
+    mock_db.session.commit.side_effect = lambda: call_order.append("commit")
+
+    with (
+        patch(
+            "superset.commands.report.execute.security_manager"
+        ) as mock_security_manager,
+        patch(
+            "superset.commands.report.execute.ChartScreenshot",
+        ) as mock_chart_screenshot,
+        patch("superset.commands.report.execute.get_executor") as mock_get_executor,
+    ):
+        mock_user = mocker.MagicMock()
+        mock_security_manager.find_user.return_value = mock_user
+        mock_get_executor.return_value = ("executor", "username")
+
+        mock_instance = mocker.MagicMock()
+
+        def _screenshot_side_effect(user: object) -> bytes:
+            call_order.append("get_screenshot")
+            return b"img"
+
+        mock_instance.get_screenshot.side_effect = _screenshot_side_effect
+        mock_chart_screenshot.return_value = mock_instance
+
+        report_state._get_screenshots()
+
+    assert "commit" in call_order, "db.session.commit() was not called"
+    assert "get_screenshot" in call_order, "get_screenshot was not called"
+    commit_idx = call_order.index("commit")
+    screenshot_idx = call_order.index("get_screenshot")
+    assert commit_idx < screenshot_idx, (
+        f"commit must happen before get_screenshot, but order was: {call_order}"
+    )
+
+
 def test_update_recipient_to_slack_v2(mocker: MockerFixture):
     """
     Test converting a Slack recipient to Slack v2 format.
