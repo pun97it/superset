@@ -94,6 +94,7 @@ async function runPreamble() {
 beforeEach(() => {
   jest.clearAllMocks();
   jest.resetModules();
+  sessionStorage.clear();
 });
 
 test('passes bootstrap locale to setupFormatters', async () => {
@@ -110,4 +111,32 @@ test('falls back to en when passing locale to setupFormatters', async () => {
   await runPreamble();
 
   expect(mockSetupFormatters).toHaveBeenCalledWith({}, {}, 'en');
+});
+
+test('clears stale login_attempted flag on non-login pages', async () => {
+  mockGetBootstrapData.mockReturnValue(bootstrapData());
+  sessionStorage.setItem('login_attempted', 'true');
+
+  Object.defineProperty(window, 'location', {
+    value: { pathname: '/superset/welcome/' },
+    writable: true,
+  });
+
+  await runPreamble();
+
+  expect(sessionStorage.getItem('login_attempted')).toBeNull();
+});
+
+test('preserves login_attempted flag on the login page', async () => {
+  mockGetBootstrapData.mockReturnValue(bootstrapData());
+  sessionStorage.setItem('login_attempted', 'true');
+
+  Object.defineProperty(window, 'location', {
+    value: { pathname: '/login/' },
+    writable: true,
+  });
+
+  await runPreamble();
+
+  expect(sessionStorage.getItem('login_attempted')).toBe('true');
 });
