@@ -162,23 +162,16 @@ const buildQuery: BuildQuery<TableChartFormData> = (
           getMetricLabel,
         );
 
-        if (calculationMode === 'all_records') {
-          postProcessing.push({
-            operation: 'contribution',
-            options: {
-              columns: percentMetricLabels,
-              rename_columns: percentMetricLabels.map(m => `%${m}`),
-            },
-          });
-        } else {
-          postProcessing.push({
-            operation: 'contribution',
-            options: {
-              columns: percentMetricLabels,
-              rename_columns: percentMetricLabels.map(m => `%${m}`),
-            },
-          });
-        }
+        postProcessing.push({
+          operation: 'contribution',
+          options: {
+            columns: percentMetricLabels,
+            rename_columns: percentMetricLabels.map(m => `%${m}`),
+            ...(calculationMode === 'all_records' && {
+              needs_contribution_totals: true,
+            }),
+          },
+        });
       }
 
       // Add the operator for the time comparison if some is selected

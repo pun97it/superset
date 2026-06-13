@@ -1057,6 +1057,7 @@ def test_ensure_totals_available_updates_cache_values():
                 "options": {
                     "columns": ["Amount In", "Amount Out"],
                     "rename_columns": ["%Amount In", "%Amount Out"],
+                    "needs_contribution_totals": True,
                 },
             }
         ],
@@ -1092,6 +1093,7 @@ def test_ensure_totals_available_updates_cache_values():
                         "options": {
                             "columns": ["Amount In", "Amount Out"],
                             "rename_columns": ["%Amount In", "%Amount Out"],
+                            "needs_contribution_totals": True,
                         },
                     }
                 ],
@@ -1298,7 +1300,12 @@ def test_cache_values_sync_after_ensure_totals_available():
         columns=["region"],
         metrics=["sales"],
         row_limit=1000,
-        post_processing=[{"operation": "contribution", "options": {}}],
+        post_processing=[
+            {
+                "operation": "contribution",
+                "options": {"needs_contribution_totals": True},
+            }
+        ],
     )
 
     # Create mock query context with initial cache_values
@@ -1314,7 +1321,12 @@ def test_cache_values_sync_after_ensure_totals_available():
                 "columns": ["region"],
                 "metrics": ["sales"],
                 "row_limit": 1000,
-                "post_processing": [{"operation": "contribution", "options": {}}],
+                "post_processing": [
+                    {
+                        "operation": "contribution",
+                        "options": {"needs_contribution_totals": True},
+                    }
+                ],
             },
             {
                 "columns": [],
@@ -1389,6 +1401,76 @@ def test_cache_values_sync_after_ensure_totals_available():
     # Verify that the main query row_limit is still 1000 (only totals query
     # should be modified)
     assert updated_cache_queries[0]["row_limit"] == 1000
+
+
+def test_show_totals_does_not_inject_contribution_totals():
+    """
+    Regression test: when show_totals is enabled (row_limit mode), the totals
+    query should NOT be used as a contribution totals source. The contribution
+    post-processing must calculate its own column sums so that percentages are
+    relative to the visible rows, not to the entire dataset.
+    """
+    import pandas as pd
+
+    from superset.common.query_object import QueryObject
+
+    mock_datasource = MagicMock()
+    mock_datasource.uid = "test_datasource"
+    mock_datasource.database.db_engine_spec.engine = "postgresql"
+    mock_datasource.cache_timeout = None
+    mock_datasource.changed_on = None
+
+    # Main query with contribution but WITHOUT needs_contribution_totals
+    main_query = QueryObject(
+        datasource=mock_datasource,
+        columns=["category"],
+        metrics=["count", "sum_sales"],
+        row_limit=100,
+        post_processing=[
+            {
+                "operation": "contribution",
+                "options": {
+                    "columns": ["sum_sales"],
+                    "rename_columns": ["%sum_sales"],
+                },
+            }
+        ],
+    )
+
+    # Totals query for show_totals (show summary row)
+    totals_query = QueryObject(
+        datasource=mock_datasource,
+        columns=[],
+        metrics=["count", "sum_sales"],
+        row_limit=0,
+        post_processing=[],
+    )
+
+    mock_query_context = MagicMock()
+    mock_query_context.force = False
+    mock_query_context.datasource = mock_datasource
+    mock_query_context.queries = [main_query, totals_query]
+
+    processor = QueryContextProcessor(mock_query_context)
+    processor._qc_datasource = mock_datasource
+
+    mock_query_result = MagicMock()
+    mock_query_result.df = pd.DataFrame({"count": [10000], "sum_sales": [500000.0]})
+
+    with patch.object(
+        mock_query_context, "get_query_result", return_value=mock_query_result
+    ):
+        processor.ensure_totals_available()
+
+    # contribution_totals should NOT have been injected
+    pp_options = main_query.post_processing[0]["options"]
+    assert "contribution_totals" not in pp_options, (
+        "contribution_totals should not be injected when "
+        "needs_contribution_totals is not set"
+    )
+
+    # totals query row_limit should NOT have been modified
+    assert totals_query.row_limit == 0
 
 
 def test_cache_key_excludes_contribution_totals():

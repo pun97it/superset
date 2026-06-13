@@ -98,6 +98,7 @@ interface _PostProcessingContribution {
     columns?: string[];
     rename_columns?: string[];
     contribution_totals?: Record<string, number>;
+    needs_contribution_totals?: boolean;
   };
 }
 export type PostProcessingContribution =
