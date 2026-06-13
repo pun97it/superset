@@ -281,8 +281,13 @@ class QueryContextProcessor:
 
     def _prepare_contribution_totals(self) -> tuple[list[int], int | None]:
         """
-        Identify contribution queries and normalize the totals query so cache keys
-        align with cached results.
+        Identify contribution queries that explicitly request external totals
+        and normalize the totals query so cache keys align with cached results.
+
+        Only contribution operations with ``needs_contribution_totals=True``
+        are considered. This prevents the "show summary" totals query from
+        being mistakenly used as a contribution totals source, which would
+        change percentages from row-limit-relative to all-records-relative.
         """
         queries_needing_totals: list[int] = []
         totals_idx: int | None = None
@@ -290,6 +295,7 @@ class QueryContextProcessor:
         for i, query in enumerate(self._query_context.queries):
             needs_totals = any(
                 pp.get("operation") == "contribution"
+                and pp.get("options", {}).get("needs_contribution_totals")
                 for pp in getattr(query, "post_processing", []) or []
             )
 

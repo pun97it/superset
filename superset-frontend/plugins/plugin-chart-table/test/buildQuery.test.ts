@@ -190,6 +190,7 @@ describe('plugin-chart-table', () => {
             options: {
               columns: ['sum_sales'],
               rename_columns: ['%sum_sales'],
+              needs_contribution_totals: true,
             },
           },
         ]);
@@ -217,6 +218,26 @@ describe('plugin-chart-table', () => {
         expect(queries).toHaveLength(3);
         expect(queries[1].metrics).toEqual(['sum_sales']);
         expect(queries[2].metrics).toEqual(['count', 'sum_sales']);
+      });
+
+      test('should not set needs_contribution_totals in row_limit mode with show_totals', () => {
+        const formData = {
+          ...baseFormDataWithPercents,
+          show_totals: true,
+        };
+
+        const { queries } = buildQuery(formData);
+
+        expect(queries).toHaveLength(2);
+        expect(queries[0].post_processing).toEqual([
+          {
+            operation: 'contribution',
+            options: {
+              columns: ['sum_sales'],
+              rename_columns: ['%sum_sales'],
+            },
+          },
+        ]);
       });
 
       test('should handle empty percent_metrics in all_records mode', () => {
