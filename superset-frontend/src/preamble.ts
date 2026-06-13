@@ -39,6 +39,16 @@ import 'dayjs/plugin/duration';
 import 'dayjs/plugin/updateLocale';
 import 'dayjs/plugin/localizedFormat';
 
+// Clear the login_attempted flag when we successfully reach a non-login page.
+// This prevents a false "Invalid username or password" toast from appearing when
+// a user's session expires and they are redirected back to /login/.
+if (
+  !window.location.pathname.endsWith('/login/') &&
+  !window.location.pathname.endsWith('/login')
+) {
+  sessionStorage.removeItem('login_attempted');
+}
+
 let initPromise: Promise<void> | null = null;
 
 const LANGUAGE_PACK_REQUEST_TIMEOUT_MS = 5000;
