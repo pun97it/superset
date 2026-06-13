@@ -1293,6 +1293,59 @@ def _make_state_instance(
     return instance
 
 
+def test_is_on_working_timeout_uses_default_when_working_timeout_is_none(
+    app: SupersetApp,
+    mocker: MockerFixture,
+) -> None:
+    """When working_timeout is None, fall back to the config default."""
+    app.config["ALERT_REPORTS_DEFAULT_WORKING_TIMEOUT"] = 3600
+    state = _make_state_instance(mocker, ReportWorkingState, working_timeout=None)
+    state._report_schedule.working_timeout = None
+
+    mock_log = mocker.Mock()
+    mock_log.end_dttm = datetime.utcnow() - timedelta(hours=2)
+    mocker.patch(
+        "superset.commands.report.execute.ReportScheduleDAO.find_last_entered_working_log",
+        return_value=mock_log,
+    )
+
+    assert state.is_on_working_timeout() is True
+
+
+def test_is_on_working_timeout_falls_back_to_last_eval_dttm_when_log_pruned(
+    app: SupersetApp,
+    mocker: MockerFixture,
+) -> None:
+    """When the WORKING log has been pruned, fall back to last_eval_dttm."""
+    app.config["ALERT_REPORTS_DEFAULT_WORKING_TIMEOUT"] = 3600
+    state = _make_state_instance(mocker, ReportWorkingState)
+    state._report_schedule.last_eval_dttm = datetime.utcnow() - timedelta(hours=2)
+
+    mocker.patch(
+        "superset.commands.report.execute.ReportScheduleDAO.find_last_entered_working_log",
+        return_value=None,
+    )
+
+    assert state.is_on_working_timeout() is True
+
+
+def test_is_on_working_timeout_false_when_no_log_and_no_last_eval(
+    app: SupersetApp,
+    mocker: MockerFixture,
+) -> None:
+    """When no WORKING log and no last_eval_dttm, return False."""
+    app.config["ALERT_REPORTS_DEFAULT_WORKING_TIMEOUT"] = 3600
+    state = _make_state_instance(mocker, ReportWorkingState)
+    state._report_schedule.last_eval_dttm = None
+
+    mocker.patch(
+        "superset.commands.report.execute.ReportScheduleDAO.find_last_entered_working_log",
+        return_value=None,
+    )
+
+    assert state.is_on_working_timeout() is False
+
+
 def test_working_state_timeout_raises_timeout_error(mocker: MockerFixture) -> None:
     """Working state past timeout should raise WorkingTimeoutError and log ERROR."""
     state = _make_state_instance(mocker, ReportWorkingState)
