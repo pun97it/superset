@@ -111,3 +111,29 @@ test('falls back to en when passing locale to setupFormatters', async () => {
 
   expect(mockSetupFormatters).toHaveBeenCalledWith({}, {}, 'en');
 });
+
+test('clears login_attempted from sessionStorage on non-login pages', async () => {
+  sessionStorage.setItem('login_attempted', 'true');
+  Object.defineProperty(window, 'location', {
+    value: { ...window.location, pathname: '/superset/dashboard/1/' },
+    writable: true,
+  });
+
+  mockGetBootstrapData.mockReturnValue(bootstrapData());
+  await runPreamble();
+
+  expect(sessionStorage.getItem('login_attempted')).toBeNull();
+});
+
+test('preserves login_attempted on the login page', async () => {
+  sessionStorage.setItem('login_attempted', 'true');
+  Object.defineProperty(window, 'location', {
+    value: { ...window.location, pathname: '/login/' },
+    writable: true,
+  });
+
+  mockGetBootstrapData.mockReturnValue(bootstrapData());
+  await runPreamble();
+
+  expect(sessionStorage.getItem('login_attempted')).toBe('true');
+});
