@@ -99,16 +99,17 @@ def scheduler(self: Task) -> None:  # pylint: disable=unused-argument
         ):
             logger.info("Scheduling alert %s eta: %s", active_schedule.name, schedule)
             async_options = {"eta": schedule}
-            if (
-                active_schedule.working_timeout is not None
-                and current_app.config["ALERT_REPORTS_WORKING_TIME_OUT_KILL"]
-            ):
-                async_options["time_limit"] = (
+            if current_app.config["ALERT_REPORTS_WORKING_TIME_OUT_KILL"]:
+                working_timeout = (
                     active_schedule.working_timeout
+                    or current_app.config["ALERT_REPORTS_DEFAULT_WORKING_TIMEOUT"]
+                )
+                async_options["time_limit"] = (
+                    working_timeout
                     + current_app.config["ALERT_REPORTS_WORKING_TIME_OUT_LAG"]
                 )
                 async_options["soft_time_limit"] = (
-                    active_schedule.working_timeout
+                    working_timeout
                     + current_app.config["ALERT_REPORTS_WORKING_SOFT_TIME_OUT_LAG"]
                 )
             execute.apply_async((active_schedule.id,), **async_options)

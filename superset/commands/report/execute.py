@@ -858,16 +858,24 @@ class BaseReportState:
         """
         Checks if an alert is in a working timeout
         """
+        working_timeout = (
+            self._report_schedule.working_timeout
+            or app.config["ALERT_REPORTS_DEFAULT_WORKING_TIMEOUT"]
+        )
+
         last_working = ReportScheduleDAO.find_last_entered_working_log(
             self._report_schedule
         )
         if not last_working:
+            if self._report_schedule.last_eval_dttm is not None:
+                return (
+                    datetime.utcnow() - timedelta(seconds=working_timeout)
+                    > self._report_schedule.last_eval_dttm
+                )
             return False
         return (
-            self._report_schedule.working_timeout is not None
-            and self._report_schedule.last_eval_dttm is not None
-            and datetime.utcnow()
-            - timedelta(seconds=self._report_schedule.working_timeout)
+            self._report_schedule.last_eval_dttm is not None
+            and datetime.utcnow() - timedelta(seconds=working_timeout)
             > last_working.end_dttm
         )
 
