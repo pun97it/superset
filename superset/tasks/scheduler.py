@@ -27,7 +27,7 @@ from celery.signals import task_failure
 from flask import current_app
 from superset_core.tasks.types import TaskStatus
 
-from superset import is_feature_enabled
+from superset import db, is_feature_enabled
 from superset.commands.exceptions import CommandException
 from superset.commands.logs.prune import LogPruneCommand
 from superset.commands.report.exceptions import ReportScheduleUnexpectedError
@@ -39,6 +39,7 @@ from superset.daos.report import ReportScheduleDAO
 from superset.daos.tasks import TaskDAO
 from superset.extensions import celery_app
 from superset.key_value.commands.prune import KeyValuePruneCommand
+from superset.reports.models import ReportSchedule, ReportState
 from superset.stats_logger import BaseStatsLogger
 from superset.tasks.ambient_context import use_context
 from superset.tasks.constants import ABORT_STATES, TERMINAL_STATES
@@ -114,6 +115,35 @@ def scheduler(self: Task) -> None:  # pylint: disable=unused-argument
             execute.apply_async((active_schedule.id,), **async_options)
 
 
+def _ensure_report_error_state(report_schedule_id: int) -> None:
+    """
+    Transition a report schedule from WORKING to ERROR after a
+    SoftTimeLimitExceeded. Uses a minimal direct DB update so it
+    succeeds even when the normal state-machine path was interrupted.
+    """
+    try:
+        report = (
+            db.session.query(ReportSchedule)
+            .filter_by(id=report_schedule_id)
+            .one_or_none()
+        )
+        if report and report.last_state == ReportState.WORKING:
+            report.last_state = ReportState.ERROR
+            report.last_eval_dttm = datetime.now(tz=timezone.utc)
+            db.session.commit()  # pylint: disable=consider-using-transaction
+            logger.info(
+                "Transitioned report schedule %s from WORKING to ERROR "
+                "after soft time limit",
+                report_schedule_id,
+            )
+    except Exception:  # pylint: disable=broad-except
+        db.session.rollback()  # pylint: disable=consider-using-transaction
+        logger.exception(
+            "Failed to transition report schedule %s to ERROR state",
+            report_schedule_id,
+        )
+
+
 @celery_app.task(name="reports.execute", bind=True)
 def execute(self: Task, report_schedule_id: int) -> None:
     stats_logger: BaseStatsLogger = current_app.config["STATS_LOGGER"]
@@ -133,6 +163,14 @@ def execute(self: Task, report_schedule_id: int) -> None:
             report_schedule_id,
             scheduled_dttm,
         ).run()
+    except SoftTimeLimitExceeded:
+        logger.warning(
+            "A timeout occurred while executing the report: %s, task id: %s",
+            report_schedule_id,
+            task_id,
+        )
+        _ensure_report_error_state(report_schedule_id)
+        self.update_state(state="FAILURE")
     except ReportScheduleUnexpectedError:
         logger.exception(
             "An unexpected error occurred while executing the report: %s", task_id
