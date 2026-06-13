@@ -115,21 +115,29 @@ export default function Login() {
   // Should be replaced with proper SPA-style authentication (JSON API with error responses)
   // when Flask-AppBuilder is updated or we implement a custom login endpoint.
   useEffect(() => {
-    const loginAttempted = sessionStorage.getItem('login_attempted');
+    const loginAttemptedAt = sessionStorage.getItem('login_attempted_at');
 
-    if (loginAttempted === 'true') {
-      sessionStorage.removeItem('login_attempted');
-      dispatch(addDangerToast(t('Invalid username or password')));
-      // Clear password field for security
-      form.setFieldsValue({ password: '' });
+    if (loginAttemptedAt) {
+      sessionStorage.removeItem('login_attempted_at');
+      const elapsed = Date.now() - parseInt(loginAttemptedAt, 10);
+      // Only show the error if the login attempt was recent (within 30 s).
+      // After a successful login the flag stays in sessionStorage because the
+      // Login component never remounts on the welcome page. If the session
+      // later expires and the user is redirected back here, the stale flag
+      // would otherwise trigger a false "invalid credentials" toast.
+      if (elapsed < 30_000) {
+        dispatch(addDangerToast(t('Invalid username or password')));
+        // Clear password field for security
+        form.setFieldsValue({ password: '' });
+      }
     }
   }, [dispatch, form]);
 
   const onFinish = (values: LoginForm) => {
     setLoading(true);
 
-    // Mark that we're attempting login (for error detection after redirect)
-    sessionStorage.setItem('login_attempted', 'true');
+    // Mark when we're attempting login (for error detection after redirect)
+    sessionStorage.setItem('login_attempted_at', Date.now().toString());
 
     // Use standard form submission for Flask-AppBuilder compatibility
     SupersetClient.postForm(loginEndpoint, values, '');
