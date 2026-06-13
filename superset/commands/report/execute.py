@@ -463,6 +463,11 @@ class BaseReportState:
                 )
                 for url in urls
             ]
+        # Permalink entries created by _get_tab_url / get_dashboard_urls are
+        # only flushed inside the outer @transaction() and not yet committed.
+        # The webdriver (Playwright/Selenium) fetches the permalink URL over
+        # HTTP in a separate DB connection, so the row must be visible first.
+        db.session.commit()  # pylint: disable=consider-using-transaction
         try:
             imges = []
             for screenshot in screenshots:
