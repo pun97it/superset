@@ -463,6 +463,14 @@ class BaseReportState:
                 )
                 for url in urls
             ]
+
+        # Permalink entries created by get_dashboard_urls() / _get_tab_url()
+        # are only flushed inside the outer @transaction() — not committed.
+        # The screenshot driver (Playwright/Selenium) opens a separate HTTP
+        # connection with its own DB session, so it cannot see uncommitted
+        # rows.  Commit here to make permalinks visible before navigating.
+        db.session.commit()
+
         try:
             imges = []
             for screenshot in screenshots:

@@ -1621,3 +1621,70 @@ def test_get_url_for_csv_uses_post_processed_type(
         f"CSV report URL must use type=post_processed so chart filters "
         f"(incl. time filters) are applied; got: {url}; see issue #25538"
     )
+
+
+def test_get_screenshots_commits_before_capture(
+    app: SupersetApp,
+    mocker: MockerFixture,
+) -> None:
+    """Permalink rows created during URL generation must be committed before
+    the screenshot driver (Playwright/Selenium) navigates to them, because
+    the driver uses a separate HTTP connection with its own DB session."""
+    from superset.commands.report.execute import BaseReportState
+
+    app.config.update(
+        {
+            "ALERT_REPORTS_MAX_CUSTOM_SCREENSHOT_WIDTH": 1600,
+            "WEBDRIVER_WINDOW": {
+                "slice": (800, 600),
+                "dashboard": (1600, 1200),
+            },
+            "ALERT_REPORTS_EXECUTORS": {},
+        }
+    )
+
+    schedule = mocker.Mock(spec=ReportSchedule)
+    schedule.type = ReportScheduleType.REPORT
+    schedule.chart = None
+    schedule.dashboard = mocker.MagicMock()
+    schedule.dashboard.digest = "abc"
+    schedule.custom_width = None
+    schedule.custom_height = None
+    schedule.force_screenshot = False
+    schedule.extra = {}
+    schedule.get_native_filters_params.return_value = (None, [])
+
+    state = BaseReportState(
+        report_schedule=schedule,
+        scheduled_dttm=datetime.now(),
+        execution_id=uuid4(),
+    )
+
+    mock_db = mocker.patch("superset.commands.report.execute.db")
+    mocker.patch(
+        "superset.commands.report.execute.get_executor",
+        return_value=("executor", "username"),
+    )
+    mocker.patch(
+        "superset.commands.report.execute.security_manager"
+    ).find_user.return_value = mocker.MagicMock()
+
+    mock_screenshot_cls = mocker.patch(
+        "superset.commands.report.execute.DashboardScreenshot"
+    )
+    mock_screenshot_cls.return_value.get_screenshot.return_value = b"img"
+
+    call_order: list[str] = []
+    mock_db.session.commit.side_effect = lambda: call_order.append("commit")
+    mock_screenshot_cls.return_value.get_screenshot.side_effect = lambda user: (
+        call_order.append("screenshot") or b"img"
+    )
+
+    state._get_screenshots()
+
+    assert "commit" in call_order, "db.session.commit() was never called"
+    assert "screenshot" in call_order, "screenshot was never taken"
+    assert call_order.index("commit") < call_order.index("screenshot"), (
+        "db.session.commit() must be called before screenshot capture "
+        "to avoid the permalink race condition"
+    )
