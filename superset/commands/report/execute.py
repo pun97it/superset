@@ -359,6 +359,14 @@ class BaseReportState:
             state=dashboard_state,
         ).run()
 
+        # The permalink must be visible to external processes (e.g. Playwright)
+        # that will fetch it via a separate HTTP request. When this method is
+        # called inside a nested @transaction context the decorator skips the
+        # commit, leaving the row only flushed. An explicit commit here
+        # ensures the row is persisted before the URL is handed to the
+        # screenshot driver.
+        db.session.commit()  # pylint: disable=consider-using-transaction
+
         return get_url_path(
             "Superset.dashboard_permalink",
             key=permalink_key,

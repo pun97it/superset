@@ -784,6 +784,36 @@ def test_get_tab_url(
     assert result == urllib.parse.urljoin(base_url, "superset/dashboard/p/uri/")
 
 
+@patch("superset.commands.report.execute.db")
+@patch(
+    "superset.commands.dashboard.permalink.create.CreateDashboardPermalinkCommand.run"
+)
+def test_get_tab_url_commits_permalink(
+    mock_run: MockerFixture,
+    mock_db: MockerFixture,
+    mocker: MockerFixture,
+    app: SupersetApp,
+) -> None:
+    """Permalink row must be committed before the URL is returned so that
+    external processes (Playwright) can read it."""
+    mock_report_schedule: ReportSchedule = mocker.Mock(spec=ReportSchedule)
+    mock_report_schedule.dashboard_id = 123
+
+    class_instance: BaseReportState = BaseReportState(
+        mock_report_schedule, "January 1, 2021", "execution_id_example"
+    )
+    class_instance._report_schedule = mock_report_schedule
+    mock_run.return_value = "uri"
+    dashboard_state = DashboardPermalinkState(
+        anchor="1",
+        dataMask=None,
+        activeTabs=None,
+        urlParams=None,
+    )
+    class_instance._get_tab_url(dashboard_state)
+    mock_db.session.commit.assert_called_once()
+
+
 @patch(
     "superset.commands.dashboard.permalink.create.CreateDashboardPermalinkCommand.run"
 )
