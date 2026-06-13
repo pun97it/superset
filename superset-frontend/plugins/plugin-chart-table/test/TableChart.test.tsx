@@ -435,6 +435,13 @@ describe('plugin-chart-table', () => {
       expect(timestampColumn).toBeDefined();
     });
 
+    test('should include percent metric values in totals when show_totals is enabled', () => {
+      const transformedProps = transformProps(testData.advancedWithTotals);
+      expect(transformedProps.totals).toBeDefined();
+      expect(transformedProps.totals?.['%pct_nice']).toBe(1);
+      expect(transformedProps.totals?.['sum__num']).toBe(2481872);
+    });
+
     describe('TableChart', () => {
       test('render basic data', () => {
         render(

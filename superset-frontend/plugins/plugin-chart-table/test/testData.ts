@@ -378,6 +378,60 @@ const comparisonWithHiddenColumns: TableChartProps = {
   emitCrossFilters: false,
 };
 
+const advancedWithTotals: TableChartProps = {
+  ...advanced,
+  rawFormData: {
+    ...advanced.rawFormData,
+    show_totals: true,
+    query_mode: QueryMode.Aggregate,
+  },
+  queriesData: [
+    {
+      ...basicQueryResult,
+      colnames: ['name', 'sum__num', '%pct_nice'],
+      coltypes: [
+        GenericDataType.String,
+        GenericDataType.Numeric,
+        GenericDataType.Numeric,
+      ],
+      data: [
+        {
+          name: 'Michael',
+          sum__num: 2467063,
+          '%pct_nice': 0.5,
+        },
+        {
+          name: 'Joe',
+          sum__num: 2467,
+          '%pct_nice': 0.3,
+        },
+        {
+          name: 'Maria',
+          sum__num: 12342,
+          '%pct_nice': 0.2,
+        },
+      ],
+    },
+    {
+      ...basicQueryResult,
+      data: [
+        {
+          sum__num: 2481872,
+          pct_nice: 2481872,
+        },
+      ],
+    },
+  ],
+  filterState: { filters: {} },
+  ownState: {},
+  hooks: {
+    onAddFilter: jest.fn(),
+    setDataMask: jest.fn(),
+    onContextMenu: jest.fn(),
+  },
+  emitCrossFilters: false,
+};
+
 const raw = {
   ...advanced,
   rawFormData: {
@@ -475,6 +529,7 @@ export default {
   basic,
   advanced,
   advancedWithCurrency,
+  advancedWithTotals,
   comparison,
   comparisonWithConfig,
   comparisonWithHiddenColumns,

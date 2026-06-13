@@ -719,12 +719,25 @@ const transformProps = (
     columns,
     comparisonSuffix,
   );
-  const totals =
+  let totals =
     showTotals && queryMode === QueryMode.Aggregate
       ? isUsingTimeComparison
         ? processComparisonTotals(comparisonSuffix, totalQuery?.data)
         : totalQuery?.data[0]
       : undefined;
+
+  if (totals && percentMetrics.length > 0) {
+    const augmentedTotals: DataRecord = { ...totals };
+    percentMetrics.forEach((percentMetric: string) => {
+      if (augmentedTotals[percentMetric] === undefined) {
+        const rawMetricName = percentMetric.slice(1);
+        if (augmentedTotals[rawMetricName] !== undefined) {
+          augmentedTotals[percentMetric] = 1;
+        }
+      }
+    });
+    totals = augmentedTotals;
+  }
 
   const passedData = isUsingTimeComparison ? comparisonData || [] : data;
   const passedColumns = isUsingTimeComparison ? comparisonColumns : columns;
