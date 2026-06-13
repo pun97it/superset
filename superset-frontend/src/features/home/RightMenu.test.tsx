@@ -397,9 +397,9 @@ test('Logs out and clears local storage item redux', async () => {
 
   // Set items in local and session storage to test if they get cleared
   localStorage.setItem('redux', JSON.stringify({ test: 'test' }));
-  sessionStorage.setItem('login_attempted', 'true');
+  sessionStorage.setItem('login_attempted_at', Date.now().toString());
   expect(localStorage.getItem('redux')).not.toBeNull();
-  expect(sessionStorage.getItem('login_attempted')).not.toBeNull();
+  expect(sessionStorage.getItem('login_attempted_at')).not.toBeNull();
 
   await userEvent.hover(await screen.findByText(/Settings/i));
 
@@ -410,7 +410,7 @@ test('Logs out and clears local storage item redux', async () => {
   // Wait for local and session storage to be cleared
   await waitFor(() => {
     expect(localStorage.getItem('redux')).toBeNull();
-    expect(sessionStorage.getItem('login_attempted')).toBeNull();
+    expect(sessionStorage.getItem('login_attempted_at')).toBeNull();
   });
 });
 

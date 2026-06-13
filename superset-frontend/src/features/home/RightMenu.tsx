@@ -352,7 +352,7 @@ const RightMenu = ({
   const handleLogout = () => {
     try {
       window.localStorage.removeItem('redux');
-      window.sessionStorage.removeItem('login_attempted');
+      window.sessionStorage.removeItem('login_attempted_at');
     } catch (error) {
       console.warn('Failed to clear storage on logout:', error);
     }
