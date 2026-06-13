@@ -43,12 +43,24 @@ let initPromise: Promise<void> | null = null;
 
 const LANGUAGE_PACK_REQUEST_TIMEOUT_MS = 5000;
 
+function clearStaleLoginFlag(): void {
+  const isLoginPage = window.location.pathname.includes('/login');
+  if (!isLoginPage) {
+    try {
+      sessionStorage.removeItem('login_attempted');
+    } catch {
+      // sessionStorage may be unavailable in some contexts
+    }
+  }
+}
+
 export default function initPreamble(): Promise<void> {
   if (initPromise) {
     return initPromise;
   }
 
   initPromise = (async () => {
+    clearStaleLoginFlag();
     configure();
 
     // Grab initial bootstrap data
