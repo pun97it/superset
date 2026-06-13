@@ -463,6 +463,14 @@ class BaseReportState:
                 )
                 for url in urls
             ]
+        # Permalink entries created during URL generation (via
+        # CreateDashboardPermalinkCommand) are only flushed, not committed,
+        # because the command's @transaction decorator is a no-op inside
+        # the outer report-execution transaction.  Playwright opens the
+        # permalink URL in a separate browser session that cannot see
+        # uncommitted rows, so we must commit here to avoid a race condition.
+        db.session.commit()  # pylint: disable=consider-using-transaction
+
         try:
             imges = []
             for screenshot in screenshots:
