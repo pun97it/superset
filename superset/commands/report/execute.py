@@ -862,12 +862,19 @@ class BaseReportState:
             self._report_schedule
         )
         if not last_working:
-            return False
+            # No WORKING log entry found (pruned, crash before log creation,
+            # or manual DB edit). Treat as timed-out so the schedule can
+            # recover instead of staying stuck in WORKING forever.
+            return True
+
+        working_timeout = (
+            self._report_schedule.working_timeout
+            if self._report_schedule.working_timeout is not None
+            else int(app.config.get("ALERT_REPORTS_DEFAULT_WORKING_TIMEOUT", 3600))
+        )
         return (
-            self._report_schedule.working_timeout is not None
-            and self._report_schedule.last_eval_dttm is not None
-            and datetime.utcnow()
-            - timedelta(seconds=self._report_schedule.working_timeout)
+            self._report_schedule.last_eval_dttm is not None
+            and datetime.utcnow() - timedelta(seconds=working_timeout)
             > last_working.end_dttm
         )
 
