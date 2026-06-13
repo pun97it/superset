@@ -4038,6 +4038,17 @@ class SupersetSecurityManager(  # pylint: disable=too-many-public-methods
         original_auth_rate_limited = current_app.config["AUTH_RATE_LIMITED"]
         current_app.config["AUTH_RATE_LIMITED"] = False
 
+        # Record which Security menu items already exist (registered by
+        # Superset's init_views) so we only remove the duplicates that FAB's
+        # parent register_views() adds, not Superset's own React-based views.
+        security_menu = next(
+            (m for m in self.appbuilder.menu.get_list() if m.name == "Security"),
+            None,
+        )
+        existing_menu_items = (
+            {id(item) for item in security_menu.childs} if security_menu else set()
+        )
+
         try:
             super().register_views()
         finally:
@@ -4050,12 +4061,15 @@ class SupersetSecurityManager(  # pylint: disable=too-many-public-methods
             ) in ["/roles", "/users", "/groups", "registrations"]:
                 self.appbuilder.baseviews.remove(view)
 
+        # Remove only the menu items that FAB's parent register_views() added
+        # (not the ones Superset registered earlier in init_views).
         security_menu = next(
-            (m for m in self.appbuilder.menu.get_list() if m.name == "Security"), None
+            (m for m in self.appbuilder.menu.get_list() if m.name == "Security"),
+            None,
         )
         if security_menu:
             for item in list(security_menu.childs):
-                if item.name in [
+                if id(item) not in existing_menu_items and item.name in [
                     "List Roles",
                     "List Users",
                     "List Groups",
