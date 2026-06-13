@@ -463,6 +463,13 @@ class BaseReportState:
                 )
                 for url in urls
             ]
+
+            # Permalink entries created by get_dashboard_urls() / _get_tab_url()
+            # may still be uncommitted when running inside an outer @transaction.
+            # Commit them so that the headless browser (Playwright), which uses
+            # a separate database session, can resolve the permalink URLs.
+            db.session.commit()  # pylint: disable=consider-using-transaction
+
         try:
             imges = []
             for screenshot in screenshots:
